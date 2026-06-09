@@ -1,0 +1,15 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+
+# claude code: 로컬 권한 파일만 제외(공유 commands/agents는 커밋)
+.claude/settings.local.json
+.claude/*.local.json
