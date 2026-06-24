@@ -16,8 +16,17 @@ class HandoffData(BaseModel):
     reason: str
 
 
-class OffTopicGuardrailOutput(BaseModel):
-    """입력 가드레일이 레스토랑과 무관한 요청인지 판정한 결과."""
+class InputGuardrailOutput(BaseModel):
+    """입력 가드레일 판정 결과: 주제 이탈 또는 부적절한 언어 여부."""
 
     is_off_topic: bool
+    is_inappropriate: bool
+    reason: str
+
+
+class OutputGuardrailOutput(BaseModel):
+    """출력 가드레일 판정 결과: 비전문적/무례 또는 내부 정보 노출 여부."""
+
+    is_unprofessional: bool
+    reveals_internal_info: bool
     reason: str

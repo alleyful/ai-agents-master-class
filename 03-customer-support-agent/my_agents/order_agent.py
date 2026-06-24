@@ -2,6 +2,7 @@ from agents import Agent, RunContextWrapper
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
 from models import CustomerContext
+from my_agents.guardrails import professional_guardrail
 from tools import AgentToolUsageLoggingHooks, get_order_status, place_order
 
 
@@ -35,5 +36,6 @@ order_agent = Agent(
     name="Order Agent",
     instructions=dynamic_order_agent_instructions,
     tools=[place_order, get_order_status],
+    output_guardrails=[professional_guardrail],
     hooks=AgentToolUsageLoggingHooks(),
 )

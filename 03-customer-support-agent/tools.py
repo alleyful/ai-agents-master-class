@@ -181,6 +181,64 @@ def book_reservation(party_size: int, date: str, time: str, name: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Complaints 도구 (불만 해결, 모두 mock)
+# ---------------------------------------------------------------------------
+
+_TICKETS: dict[str, dict] = {}
+
+
+@function_tool
+def apply_discount(percent: int) -> dict:
+    """다음 방문 시 사용할 수 있는 할인 쿠폰을 발급한다."""
+    code = f"SORRY{percent}-{3000 + len(_TICKETS) + 1}"
+    return {
+        "type": "discount",
+        "percent": percent,
+        "coupon_code": code,
+        "valid_days": 90,
+        "message": f"다음 방문 시 사용 가능한 {percent}% 할인 쿠폰입니다.",
+    }
+
+
+@function_tool
+def process_refund(order_id: str = "") -> dict:
+    """환불을 접수하고 예상 처리일을 안내한다."""
+    return {
+        "type": "refund",
+        "order_id": order_id or "최근 주문",
+        "status": "환불 접수됨",
+        "processing_days": "3-5 영업일",
+    }
+
+
+@function_tool
+def request_manager_callback(summary: str) -> dict:
+    """매니저가 직접 연락하도록 콜백을 요청한다."""
+    ticket_id = f"CB-{4000 + len(_TICKETS) + 1}"
+    _TICKETS[ticket_id] = {"type": "callback", "summary": summary}
+    return {
+        "type": "manager_callback",
+        "ticket_id": ticket_id,
+        "summary": summary,
+        "eta": "24시간 이내",
+    }
+
+
+@function_tool
+def escalate_issue(summary: str, severity: str) -> dict:
+    """안전·위생 등 심각한 문제를 상위로 에스컬레이션한다. severity: 'low' | 'medium' | 'high'."""
+    ticket_id = f"ESC-{5000 + len(_TICKETS) + 1}"
+    _TICKETS[ticket_id] = {"type": "escalation", "summary": summary, "severity": severity}
+    return {
+        "type": "escalation",
+        "ticket_id": ticket_id,
+        "severity": severity,
+        "summary": summary,
+        "status": "담당 매니저에게 즉시 전달됨",
+    }
+
+
+# ---------------------------------------------------------------------------
 # 에이전트 활동 로깅 hooks (sidebar 표시)
 # ---------------------------------------------------------------------------
 

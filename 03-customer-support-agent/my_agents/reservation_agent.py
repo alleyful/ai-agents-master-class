@@ -2,6 +2,7 @@ from agents import Agent, RunContextWrapper
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
 from models import CustomerContext
+from my_agents.guardrails import professional_guardrail
 from tools import AgentToolUsageLoggingHooks, book_reservation, check_availability
 
 
@@ -34,5 +35,6 @@ reservation_agent = Agent(
     name="Reservation Agent",
     instructions=dynamic_reservation_agent_instructions,
     tools=[check_availability, book_reservation],
+    output_guardrails=[professional_guardrail],
     hooks=AgentToolUsageLoggingHooks(),
 )

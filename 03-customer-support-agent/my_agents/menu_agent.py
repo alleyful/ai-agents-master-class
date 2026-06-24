@@ -2,6 +2,7 @@ from agents import Agent, RunContextWrapper
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
 from models import CustomerContext
+from my_agents.guardrails import professional_guardrail
 from tools import (
     AgentToolUsageLoggingHooks,
     get_dish_details,
@@ -40,5 +41,6 @@ menu_agent = Agent(
     name="Menu Agent",
     instructions=dynamic_menu_agent_instructions,
     tools=[get_menu, get_dish_details, list_dietary_options],
+    output_guardrails=[professional_guardrail],
     hooks=AgentToolUsageLoggingHooks(),
 )
