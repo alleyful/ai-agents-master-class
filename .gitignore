@@ -18,3 +18,7 @@ wheels/
 *.db
 *.db-shm
 *.db-wal
+
+# Streamlit secrets (커밋 금지, *.example 템플릿만 커밋)
+.streamlit/secrets.toml
+secrets.toml
