@@ -3,8 +3,19 @@ import dotenv
 dotenv.load_dotenv()
 
 import asyncio
+import os
+import uuid
 
 import streamlit as st
+
+# 로컬은 .env(dotenv), 배포(Streamlit Cloud)는 st.secrets 에서 키를 읽어 환경변수로 노출한다.
+# OpenAI / Agents SDK 는 OPENAI_API_KEY 환경변수를 자동 사용한다.
+if not os.getenv("OPENAI_API_KEY"):
+    try:
+        os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+    except Exception:
+        pass
+
 from agents import OutputGuardrailTripwireTriggered, Runner, SQLiteSession
 
 from models import CustomerContext
@@ -25,9 +36,13 @@ HANDOFF_MESSAGES = {
 }
 
 
+# 접속자(브라우저 세션)마다 고유 ID를 부여해 대화 메모리가 서로 섞이지 않게 한다.
+if "session_id" not in st.session_state:
+    st.session_state["session_id"] = uuid.uuid4().hex
+
 if "session" not in st.session_state:
     st.session_state["session"] = SQLiteSession(
-        "chat-history",
+        st.session_state["session_id"],
         "customer-support-memory.db",
     )
 session = st.session_state["session"]

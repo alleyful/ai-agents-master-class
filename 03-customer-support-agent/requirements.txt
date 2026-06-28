@@ -1,0 +1,5 @@
+# 로컬 .venv 설치 버전으로 고정 — Cloud 배포 시 동작 차이(버전 드리프트) 최소화
+streamlit==1.58.0
+openai-agents==0.17.6
+openai==2.43.0
+python-dotenv==1.2.2
