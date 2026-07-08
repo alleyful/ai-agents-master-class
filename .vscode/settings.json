@@ -1,0 +1,3 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/assignments/knitting-tutor-agent/.venv/bin/python"
+}
