@@ -1,0 +1,10 @@
+# KnitCoach base theme — a practical knitting workbench.
+# This sets the foundation so Streamlit's own widgets match ui.py.
+# No secrets here — safe to commit.
+[theme]
+base = "light"
+primaryColor = "#C96F4E"          # thread terracotta
+backgroundColor = "#F6F4EE"       # clean work canvas
+secondaryBackgroundColor = "#FFFEFA"
+textColor = "#292C29"             # dark wool/ink
+font = "sans serif"
