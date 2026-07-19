@@ -23,16 +23,16 @@ _SHAPES = {
     "slip_knot": '<path d="M22 65c18-48 45-48 56 0M50 50c-9 9-9 20 0 30M50 50c9 9 9 20 0 30"/>',
     "treble_crochet": '<path d="M50 78V20M31 20H69M38 55L62 46M38 46L62 37"/>',
     "sc_increase": '<path d="M50 72V54M50 54L28 30M50 54L72 30M20 22L36 38M36 22L20 38M64 22L80 38M80 22L64 38"/>',
-    "sc2tog": '<path d="M28 30L44 46M44 30L28 46M72 30L56 46M56 30L72 46M36 46L50 70M64 46L50 70"/>',
-    "dc2tog": '<path d="M32 24V48M68 24V48M20 24H44M56 24H80M26 38L38 34M62 38L74 34M32 48L50 72M68 48L50 72"/>',
+    "sc2tog": '<path d="M28 76L50 24M72 76L50 24M26 55L40 61M60 61L74 55"/>',
+    "dc2tog": '<path d="M28 78L50 25M72 78L50 25M36 25H64M27 56L41 62M59 62L73 56"/>',
     "front_loop": '<ellipse cx="50" cy="50" rx="29" ry="13"/><path d="M21 50c12-15 46-15 58 0" stroke-width="7"/>',
     "back_loop": '<ellipse cx="50" cy="50" rx="29" ry="13"/><path d="M21 50c12 15 46 15 58 0" stroke-width="7"/>',
     "front_post_dc": '<path d="M50 78V22M30 22H70M39 53L61 44M22 66c12-10 44-10 56 0"/>',
     "back_post_dc": '<path d="M50 78V22M30 22H70M39 53L61 44M22 66c12 10 44 10 56 0" stroke-dasharray="6 5"/>',
-    "dc3_cluster": '<path d="M24 24V47M50 20V47M76 24V47M14 24H34M40 20H60M66 24H86M24 47L50 75M50 47V75M76 47L50 75"/>',
+    "dc3_cluster": '<path d="M50 78C18 62 18 39 50 22M50 78V22M50 78C82 62 82 39 50 22M34 22H66M27 53L40 58M43 48H57M60 58L73 53"/>',
     "puff_stitch": '<path d="M50 75V57M50 57C16 45 22 20 50 43M50 57C84 45 78 20 50 43M50 43V22"/>',
     "popcorn_stitch": '<circle cx="50" cy="48" r="25"/><path d="M32 31L68 65M68 31L32 65M50 73V84"/>',
-    "shell_stitch": '<path d="M50 76L20 28M50 76L35 22M50 76V18M50 76L65 22M50 76L80 28"/><path d="M13 28H27M28 22H42M43 18H57M58 22H72M73 28H87"/>',
+    "shell_stitch": '<path d="M50 78L24 31M50 78L39 23M50 78L61 23M50 78L76 31"/><path d="M17 31H31M32 23H46M54 23H68M69 31H83"/><ellipse cx="50" cy="17" rx="9" ry="5"/>',
     "bind_off": '<path d="M14 58c10-22 20-22 30 0s20 22 30 0 12-16 18-5"/><path d="M14 68H88"/>',
     "stockinette": '<path d="M24 20L38 80L50 48L62 80L76 20"/>',
     "garter": '<path d="M18 28H82M18 50H82M18 72H82"/><path d="M25 21v14M45 43v14M65 65v14"/>',
@@ -52,12 +52,18 @@ _SHAPES = {
 }
 
 
-def technique_symbol_svg(symbol_key: str, abbreviation: str, *, compact: bool = False) -> str:
+def technique_symbol_svg(
+    symbol_key: str,
+    abbreviation: str,
+    *,
+    compact: bool = False,
+    accessible_kind: str = "기호",
+) -> str:
     """Return a static inline SVG plus an accessible abbreviation label."""
     shape = _SHAPES.get(symbol_key, '<circle cx="50" cy="50" r="24"/>')
     size_class = " compact" if compact else ""
     return (
-        f'<div class="tech-symbol{size_class}" role="img" aria-label="{escape(abbreviation)} 기호">'
+        f'<div class="tech-symbol{size_class}" role="img" aria-label="{escape(abbreviation)} {escape(accessible_kind)}">'
         '<svg viewBox="0 0 100 100" aria-hidden="true" fill="none" '
         'stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">'
         f'{shape}</svg><span>{escape(abbreviation)}</span></div>'

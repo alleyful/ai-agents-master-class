@@ -1,0 +1,14 @@
+{
+  "yarn-over": {"video_id": "2EdTH7KEba0", "times": [21, 28, 35, 42, 49, 70]},
+  "knit-front-back": {"video_id": "LjMzNcVKHpA", "times": [12, 24, 36, 48, 60, 84]},
+  "make-one-right": {"video_id": "5vc4rrM6Jao", "times": [75, 100, 125, 150, 175, 200]},
+  "make-one-left": {"video_id": "5viq_QqxKUA", "times": [75, 100, 125, 150, 175, 200]},
+  "k2tog": {"video_id": "4hADmZkp8Ig", "times": [70, 80, 90, 100, 110, 120]},
+  "ssk": {"video_id": "4hADmZkp8Ig", "times": [10, 20, 30, 40, 50, 60]},
+  "p2tog": {"video_id": "FDVoSMGOQI4", "times": [60, 80, 100, 120, 140, 160]},
+  "slip-stitch-knitting": {"video_id": "7AUow_HZh_o", "times": [90, 108, 126, 144, 162, 180]},
+  "pick-up-stitches": {"video_id": "tz1RwL60XvY", "times": [110, 165, 275, 330, 385, 495, 605]},
+  "join-in-round": {"video_id": "KM754o8ERAE", "times": [15, 30, 45, 60, 75, 105, 165]},
+  "two-by-two-right-cable": {"video_id": "xGJ0EKHUMPY", "times": [5, 10, 15, 20, 30, 50]},
+  "two-by-two-left-cable": {"video_id": "wVGY3wKh2eo", "times": [5, 10, 15, 20, 30, 50]}
+}

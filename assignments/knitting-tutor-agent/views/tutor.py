@@ -26,7 +26,7 @@ def render() -> None:
     if not st.session_state.chat_history:
         st.markdown(
             '<div class="empty-hint">막힌 부분을 입력하고, 필요하면 사진을 첨부해 보세요.<br>'
-            "예: “원형뜨기 늘림 위치가 헷갈려요” + 작품 사진</div>",
+            "예: “매직링으로 시작한 원에서 늘림 위치가 헷갈려요” + 작품 사진</div>",
             unsafe_allow_html=True,
         )
 

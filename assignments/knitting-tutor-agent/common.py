@@ -34,6 +34,7 @@ def initialize_session() -> None:
     st.session_state.setdefault("composer_mode", "chat")
     st.session_state.setdefault("composer_context", "")
     st.session_state.setdefault("workspace_view", "chat")
+    st.session_state.setdefault("selected_journey", "start_from_zero")
 
 
 def _new_thread_data() -> dict:
@@ -46,6 +47,7 @@ def _new_thread_data() -> dict:
         "updated_at": now,
         "messages": [],
         "work_cards": [],
+        "learning_program": {},
     }
 
 
@@ -60,6 +62,7 @@ def create_thread() -> str:
     st.session_state.composer_mode = "chat"
     st.session_state.composer_context = ""
     st.session_state.workspace_view = "chat"
+    st.session_state.selected_journey = "start_from_zero"
     return thread["id"]
 
 
@@ -74,6 +77,7 @@ def activate_thread(thread_id: str) -> None:
     st.session_state.composer_mode = "chat"
     st.session_state.composer_context = ""
     st.session_state.workspace_view = "chat"
+    st.session_state.selected_journey = "start_from_zero"
 
 
 def active_thread() -> dict:
@@ -106,6 +110,25 @@ def attach_work_cards(result: dict, source_message_id: str) -> list[str]:
     thread = active_thread()
     cards: list[dict] = []
 
+    if result.get("project_suggestions"):
+        cards.append(_work_card(
+            "project_gallery",
+            "처음 완성하기 좋은 작품",
+            "완성 사진을 보고 마음에 드는 작품을 고르세요. 선택 후 준비물부터 함께 확인합니다.",
+            {"curriculum_ids": result["project_suggestions"]},
+            source_message_id,
+        ))
+
+    if result.get("purchase_plan"):
+        plan = result["purchase_plan"]
+        cards.append(_work_card(
+            "purchase_kit",
+            f"{plan['title']} 첫 구매 목록",
+            "도구 사진, 정확한 규격, 구매처와 작품 미리보기를 한곳에 모았어요.",
+            plan,
+            source_message_id,
+        ))
+
     if result.get("pattern_draft"):
         draft = result["pattern_draft"]
         cards.append(_work_card(
@@ -116,6 +139,7 @@ def attach_work_cards(result: dict, source_message_id: str) -> list[str]:
             source_message_id,
         ))
     elif result.get("photo_findings") or result.get("recommended_fixes"):
+        observation = result.get("image_observation", {})
         cards.append(_work_card(
             "diagnosis",
             "작품 문제 진단",
@@ -125,21 +149,80 @@ def attach_work_cards(result: dict, source_message_id: str) -> list[str]:
                 "diagnoses": result.get("mistake_diagnoses", []),
                 "fixes": result.get("recommended_fixes", []),
                 "confidence": result.get("difficulty_level", "unknown"),
+                "construction": observation.get("construction", []),
+                "uncertainties": observation.get("uncertainties", []),
+                "additional_photos": observation.get("additional_photos", []),
+                "model_provider": result.get("model_provider", "rules"),
+                "model_note": result.get("model_note", ""),
             },
             source_message_id,
         ))
 
-    if result.get("detected_techniques") and result.get("intent") == "learn_technique":
+    program_is_active = result.get("learning_program", {}).get("status") in {"active", "preview"}
+    if (
+        result.get("detected_techniques")
+        and result.get("intent") == "learn_technique"
+        and not result.get("program_turn")
+    ):
         names = result["detected_techniques"]
+        if result.get("learning_program"):
+            already_introduced = {
+                technique
+                for existing_card in thread["work_cards"]
+                if existing_card["type"] == "technique"
+                for technique in existing_card["payload"].get("techniques", [])
+            }
+            names = [name for name in names if name not in already_introduced]
+    else:
+        names = []
+
+    if names:
         cards.append(_work_card(
             "technique",
             names[0].split("(")[0].strip() if len(names) == 1 else f"기법 {len(names)}가지",
-            result.get("lesson_summary") or "단계와 주의할 점을 정리했어요.",
+            "핵심 동작, 자주 틀리는 부분과 복습 자료를 모았어요.",
             {
                 "techniques": names,
                 "summary": result.get("lesson_summary", ""),
                 "resources": result.get("technique_resources", []),
                 "check": result.get("understanding_check", ""),
+            },
+            source_message_id,
+        ))
+
+    if (
+        result.get("intent") == "advise_tools"
+        and result.get("required_tools")
+        and result.get("next_action")
+        and not program_is_active
+    ):
+        cards.append(_work_card(
+            "tools",
+            "프로젝트 도구 선택",
+            result["required_tools"][0],
+            {
+                "tools": result.get("required_tools", []),
+                "materials": result.get("required_materials", []),
+                "accessories": result.get("accessories", []),
+            },
+            source_message_id,
+        ))
+
+    program = result.get("learning_program", {})
+    if (
+        result.get("program_turn")
+        and program.get("status") in {"active", "preview"}
+        and result.get("input_type") != "tool_question"
+        and result.get("project_view", "step") != "none"
+    ):
+        cards.append(_work_card(
+            "learning_step",
+            "현재 단계 완료하기",
+            "완료하면 진도를 저장하고 다음 단으로 이동합니다.",
+            {
+                "learning_program": program,
+                "view_mode": result.get("project_view", "step"),
+                "conversation_action": result.get("conversation_action", ""),
             },
             source_message_id,
         ))
@@ -195,10 +278,16 @@ def debug_metadata(result: dict) -> dict:
     """Extract the developer-facing metadata shown in debug expanders."""
     return {
         "active_agent": result.get("active_agent"),
+        "journey": result.get("journey"),
         "intent": result.get("intent"),
         "tool_type": result.get("tool_type"),
         "pattern_type": result.get("pattern_type"),
         "difficulty": result.get("difficulty_level"),
         "techniques": result.get("detected_techniques"),
         "tool_findings": result.get("tool_findings"),
+        "project_suggestions": result.get("project_suggestions"),
+        "learning_program": result.get("learning_program"),
+        "conversation_action": result.get("conversation_action"),
+        "model_routed": result.get("model_routed"),
+        "project_view": result.get("project_view"),
     }

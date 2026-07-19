@@ -29,6 +29,38 @@ _CATEGORY_FILTER = {
 _CATEGORY_LABEL = {value: label for label, value in _CATEGORY_FILTER.items() if value is not None}
 
 
+def _symbol_presentation(technique) -> tuple[str, str]:
+    if technique.display_symbol_kind == "standard":
+        return "표준 도안 기호", "CYC 계열의 일반적인 도안 기호입니다. 출판 도안에서는 해당 범례를 함께 확인하세요."
+    if technique.display_symbol_kind == "modifier":
+        return "도안 보조 표시", "독립된 코 기호가 아니라 실제로 뜰 코의 기호에 붙여 사용하는 보조 표시입니다."
+    return "학습 아이콘", "동작과 구조를 설명하기 위한 학습 아이콘이며 범용 도안 기호가 아닙니다."
+
+
+def _render_reference_cards(technique) -> None:
+    with st.container(border=True, key="chain_board"):
+        english_name = technique.name.split("(", 1)[1].rstrip(")").upper() if "(" in technique.name else technique.slug.upper()
+        st.markdown(f'<span class="chain-board-kicker">{english_name} · QUICK VIEW</span>', unsafe_allow_html=True)
+        st.markdown(f"#### {technique.name.split('(')[0]} 동작 흐름")
+        st.caption("왼쪽에서 오른쪽으로 실제 손과 바늘의 위치를 따라가세요.")
+
+        cards = technique.reference_cards
+        for row_start in range(0, len(cards), 3):
+            row_cards = cards[row_start : row_start + 3]
+            columns = st.columns(len(row_cards))
+            for offset, column in enumerate(columns):
+                index = row_start + offset
+                card = cards[index]
+                with column.container(border=True, key=f"chain_card_{index + 1}"):
+                    st.markdown(
+                        f'<span class="chain-step-number">{index + 1:02d}</span>',
+                        unsafe_allow_html=True,
+                    )
+                    st.image(str(_BASE_DIR / card["path"]), width="stretch")
+                    st.markdown(f'<div class="chain-card-title">{card["title"]}</div>', unsafe_allow_html=True)
+                    st.caption(card["description"])
+
+
 def _render_detail(name: str, on_ask: Callable[[str], None] | None) -> None:
     technique = get_technique(name)
     if technique is None:
@@ -41,9 +73,14 @@ def _render_detail(name: str, on_ask: Callable[[str], None] | None) -> None:
         st.rerun()
 
     symbol, heading = st.columns([1, 4], vertical_alignment="center")
+    symbol_label, symbol_caption = _symbol_presentation(technique)
     with symbol:
         st.markdown(
-            technique_symbol_svg(technique.symbol_key, technique.abbreviation),
+            technique_symbol_svg(
+                technique.symbol_key,
+                technique.abbreviation,
+                accessible_kind=symbol_label,
+            ),
             unsafe_allow_html=True,
         )
     with heading:
@@ -52,12 +89,10 @@ def _render_detail(name: str, on_ask: Callable[[str], None] | None) -> None:
             unsafe_allow_html=True,
         )
         st.markdown(f"# {technique.name.split('(')[0]}")
-        st.caption(f"도안 약어 {technique.abbreviation}")
+        abbreviation_label = "표준 도안 약어" if technique.abbreviation_standard else "검색·학습 표기"
+        st.caption(f"{abbreviation_label} · {technique.abbreviation}")
 
-    if not technique.symbol_standard:
-        st.caption("이 기호는 복합 기법을 이해하기 위한 학습용 미니 차트입니다. 실제 도안의 범례를 우선하세요.")
-    else:
-        st.caption("일반적인 도안 기호를 단순화해 표시했습니다. 출판 도안에서는 반드시 해당 범례를 함께 확인하세요.")
+    st.caption(f"{symbol_label} · {symbol_caption}")
 
     st.markdown("### 무엇을 배우나요?")
     st.write(technique.description)
@@ -90,15 +125,64 @@ def _render_detail(name: str, on_ask: Callable[[str], None] | None) -> None:
         st.markdown("#### 성공 체크")
         st.write(technique.success_check)
 
-    st.markdown("### 영상 가이드")
+    reference_videos = technique.reference_videos or (
+        [{"url": technique.reference_video_url, "title": technique.reference_video_title or "기초 기법 영상", "focus": ""}]
+        if technique.reference_video_url else []
+    )
+    if reference_videos:
+        st.markdown("### 1. 실제 손동작 먼저 보기")
+        if technique.slug == "crochet-chain-stitch":
+            st.write("완전 초보라면 실제 양손의 위치를 먼저 보세요. 재생 속도를 0.5배로 낮추고 아래 세 장면에서 잠시 멈추면 좋아요.")
+            st.markdown(
+                "- 왼손 검지에 실을 걸고 엄지·중지로 마지막 사슬 바로 아래를 잡는 모습\n"
+                "- 코바늘 홈을 아래로 돌려 실을 잡는 순간\n"
+                "- 바늘 위 현재 고리는 세지 않고, 바늘 아래 V 모양만 세는 모습"
+            )
+        else:
+            st.write("실제 양손의 위치와 바늘이 들어가는 지점을 먼저 확인하세요. 필요하면 0.5배속으로 낮추고 한 코가 완성되는 구간을 반복해 보세요.")
+        for index, reference in enumerate(reference_videos, start=1):
+            st.markdown(f"#### {index}. {reference['title']}")
+            if reference.get("focus"):
+                st.caption(reference["focus"])
+            st.video(reference["url"])
+            st.link_button("YouTube에서 크게 보기", reference["url"], use_container_width=True)
+        if technique.reference_article_url:
+            st.link_button("사진 5단계 설명 함께 보기", technique.reference_article_url, use_container_width=True)
+
+    review_title = "### 2. 핵심 장면으로 복습" if technique.reference_cards else "### 2. 영상으로 복습"
+    st.markdown(review_title if reference_videos else "### 영상 가이드")
     asset_path = _BASE_DIR / technique.video_asset_path
-    if asset_path.is_file():
+    if technique.reference_cards:
+        overview_tab, slide_tab = st.tabs(["한눈에 보기", "한 장씩 보기"])
+        with overview_tab:
+            _render_reference_cards(technique)
+        with slide_tab:
+            step_labels = [f"{index + 1} {card['title']}" for index, card in enumerate(technique.reference_cards)]
+            selected_step = st.radio(
+                "확인할 단계",
+                options=range(len(step_labels)),
+                format_func=lambda index: step_labels[index],
+                horizontal=True,
+                label_visibility="collapsed",
+                key=f"reference_step_{technique.slug}",
+            )
+            st.image(
+                str(_BASE_DIR / technique.reference_cards[selected_step]["path"]),
+                width="stretch",
+            )
+            selected_card = technique.reference_cards[selected_step]
+            st.markdown(f"#### {selected_step + 1:02d} · {selected_card['title']}")
+            st.info(selected_card["description"])
+    elif asset_path.is_file():
         st.video(str(asset_path))
+        if reference_videos:
+            st.caption("이 로컬 영상은 실제 손동작을 본 뒤 실의 이동 경로와 도안 기호를 복습하는 보조 자료입니다.")
     else:
         status = "파일럿 생성 대상" if technique.video_status == "pilot" else "프롬프트 준비 완료"
         st.info(f"{status} · 생성한 MP4를 `{technique.video_asset_path}`에 넣으면 여기에 표시됩니다.")
-    with st.expander("AI 영상 생성 프롬프트", expanded=not asset_path.is_file()):
-        st.code(technique.video_generation_prompt, language=None, wrap_lines=True)
+    if not technique.reference_cards:
+        with st.expander("AI 영상 생성 프롬프트", expanded=not asset_path.is_file()):
+            st.code(technique.video_generation_prompt, language=None, wrap_lines=True)
 
     if on_ask is not None:
         st.button(
@@ -117,7 +201,7 @@ def _render_grid() -> None:
         unsafe_allow_html=True,
     )
     st.markdown("# 기법 찾아보기")
-    st.write("기호를 먼저 익히고, 손동작과 실수 교정까지 한 세트로 살펴보세요.")
+    st.write("표준 도안 기호와 약어는 정확히 익히고, 기호가 없는 작업 방식은 학습 아이콘과 손동작으로 살펴보세요.")
 
     query = st.text_input(
         "기법 검색",
@@ -147,10 +231,17 @@ def _render_grid() -> None:
             with col.container(border=True):
                 symbol, copy = st.columns([1, 3], vertical_alignment="center")
                 with symbol:
+                    symbol_label, _ = _symbol_presentation(technique)
                     st.markdown(
-                        technique_symbol_svg(technique.symbol_key, technique.abbreviation, compact=True),
+                        technique_symbol_svg(
+                            technique.symbol_key,
+                            technique.abbreviation,
+                            compact=True,
+                            accessible_kind=symbol_label,
+                        ),
                         unsafe_allow_html=True,
                     )
+                    st.caption(symbol_label)
                 with copy:
                     st.caption(
                         f"{_TOOL_LABEL[technique.tool_type]} · {_LEVEL_LABEL[technique.difficulty]} · "

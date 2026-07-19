@@ -1,0 +1,19 @@
+{"id":"start-zero-01","journey":"start_from_zero","input":"뜨개질을 아무것도 모르는데 시작하고 싶어요","required_facts":["만들고 싶은 것","보유 도구"],"forbidden_claims":[]}
+{"id":"start-zero-02","journey":"start_from_zero","input":"완전 처음이에요. 코바늘과 대바늘 차이도 몰라요","required_facts":["코바늘","대바늘"],"forbidden_claims":[]}
+{"id":"start-zero-03","journey":"start_from_zero","input":"입문자인데 작은 소품부터 만들어 보고 싶어요","required_facts":["첫 연습"],"forbidden_claims":[]}
+{"id":"start-zero-keyring","journey":"start_from_zero","input":"뜨개질은 처음인데 키링을 만들어보고 싶어요","required_facts":["키링","코바늘","크기","가지고 있는"],"forbidden_claims":["짧게 연습해 보기"]}
+{"id":"continue-01","journey":"continue_learning","input":"지난번 사슬뜨기 연습 다음 단계가 궁금해요","required_facts":["성공 체크"],"forbidden_claims":[]}
+{"id":"continue-02","journey":"continue_learning","input":"사슬뜨기를 배웠는데 코 크기가 들쭉날쭉해요","required_facts":["장력"],"forbidden_claims":[]}
+{"id":"continue-03","journey":"continue_learning","input":"짧은뜨기 연습 결과를 이야기할게요","required_facts":["다음 연습"],"forbidden_claims":[]}
+{"id":"diagnose-01","journey":"diagnose_project","input":"코스터 가장자리가 자꾸 휘어요. 왜 그런가요?","required_facts":["코 수 확인"],"forbidden_claims":["사진에서 확인"]}
+{"id":"diagnose-02","journey":"diagnose_project","input":"뜨고 있는 목도리에서 코가 계속 빠져요","required_facts":["문제 위치"],"forbidden_claims":["사진에서 확인"]}
+{"id":"diagnose-03","journey":"diagnose_project","input":"원형뜨기 단 시작 위치에서 자꾸 코가 늘어나요","required_facts":["단 시작"],"forbidden_claims":[]}
+{"id":"recreate-01","journey":"recreate_from_photo","input":"이 사진 속 네트 가방을 비슷하게 만들고 싶어요","has_image":true,"required_facts":["완성 크기","실","바늘"],"forbidden_claims":["정확한 도안입니다"]}
+{"id":"recreate-02","journey":"recreate_from_photo","input":"완성품 사진으로 도안을 만들어줘","has_image":true,"task":"generate_pattern","required_facts":["게이지"],"forbidden_claims":["사진만으로 확정"]}
+{"id":"recreate-03","journey":"recreate_from_photo","input":"이 작품을 조금 작은 크기로 따라 뜨고 싶어요","has_image":true,"required_facts":["원하는 크기"],"forbidden_claims":[]}
+{"id":"pattern-01","journey":"explain_pattern","input":"ch 12, sc in each ch","required_facts":["사슬뜨기","짧은뜨기"],"forbidden_claims":[]}
+{"id":"pattern-02","journey":"explain_pattern","input":"사슬 12코로 시작해서 짧은뜨기 5단을 도안으로 바꿔줘","required_facts":["12코","5단"],"forbidden_claims":[]}
+{"id":"pattern-03","journey":"explain_pattern","input":"이 도안의 반복 구간과 약어를 풀어 설명해줘: ch 10, dc across","required_facts":["반복","약어"],"forbidden_claims":[]}
+{"id":"materials-01","journey":"start_from_materials","input":"중간 굵기 실에 몇 호 코바늘을 추천해?","required_facts":["바늘 크기"],"forbidden_claims":[]}
+{"id":"materials-02","journey":"start_from_materials","input":"울 실 두 타래와 5mm 대바늘로 뭘 만들 수 있을까요?","required_facts":["작품 추천"],"forbidden_claims":[]}
+{"id":"materials-03","journey":"start_from_materials","input":"이 실 라벨에 맞는 바늘과 부자재를 알려줘","required_facts":["실 라벨","부자재"],"forbidden_claims":[]}
