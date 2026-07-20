@@ -5,16 +5,32 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from conversation_router import ConversationAction, ConversationDecision
+from conversation_router import ConversationAction, ConversationDecision, SupportModule
 from domain.curricula import activate_learning_program, new_learning_program
 from domain.journeys import JOURNEY_DEFINITIONS, infer_journey
 from domain.models import JourneyType, TutorRequest, TutorResponse
 from knitcoach import ImageObservation, create_knitcoach, detect_input_type, detect_intent, invoke_turn, is_knitting_scope
 
 
+def make_decision(action: ConversationAction, **overrides) -> ConversationDecision:
+    payload = {
+        "action": action,
+        "curriculum_id": "",
+        "suggested_curriculum_ids": [],
+        "support_modules": [],
+        "technique_names": [],
+        "tool_slugs": [],
+        "assistant_reply": "",
+        "follow_up_question": "",
+        "reasoning_summary": "테스트용 분류 근거",
+    }
+    payload.update(overrides)
+    return ConversationDecision(**payload)
+
+
 class UserJourneyTests(unittest.TestCase):
     def test_model_answers_a_general_knitting_question_without_opening_project_ui(self) -> None:
-        decision = ConversationDecision(
+        decision = make_decision(
             action=ConversationAction.GENERAL_QUESTION,
             assistant_reply="뜨개질은 실을 고리로 연결해 편물을 만드는 작업이에요. 코바늘과 대바늘이 대표적입니다.",
             reasoning_summary="작품 선택이 아닌 일반적인 뜨개 개념 질문",
@@ -30,7 +46,7 @@ class UserJourneyTests(unittest.TestCase):
         self.assertEqual({}, result["learning_program"])
 
     def test_model_routes_curated_project_selection_into_the_pre_authored_flow(self) -> None:
-        decision = ConversationDecision(
+        decision = make_decision(
             action=ConversationAction.SELECT_PROJECT,
             curriculum_id="crochet-round-coaster",
             reasoning_summary="사용자가 검수된 티코스터 작품 제작을 원함",
@@ -45,7 +61,7 @@ class UserJourneyTests(unittest.TestCase):
 
     def test_model_distinguishes_explaining_current_step_from_advancing(self) -> None:
         program = activate_learning_program(new_learning_program("crochet-round-coaster"))
-        explain = ConversationDecision(
+        explain = make_decision(
             action=ConversationAction.EXPLAIN_CURRENT_STEP,
             reasoning_summary="1단계 설명 요청이며 완료 보고가 아님",
         )
@@ -62,7 +78,7 @@ class UserJourneyTests(unittest.TestCase):
         self.assertEqual("step", current["project_view"])
         self.assertIn("1단", current["user_response"])
 
-        advance = ConversationDecision(
+        advance = make_decision(
             action=ConversationAction.ADVANCE_STEP,
             reasoning_summary="현재 작품에서 다음 단계 이동 요청",
         )
@@ -78,6 +94,72 @@ class UserJourneyTests(unittest.TestCase):
         self.assertEqual(["round-1"], following["learning_program"]["completed_steps"])
         self.assertEqual("step", following["project_view"])
         self.assertIn("2단", following["user_response"])
+
+    def test_model_can_pair_a_contextual_answer_with_authored_technique_materials(self) -> None:
+        decision = make_decision(
+            action=ConversationAction.TECHNIQUE_QUESTION,
+            support_modules=[SupportModule.DIRECT_ANSWER, SupportModule.TECHNIQUE_LIBRARY],
+            technique_names=["짧은뜨기(single crochet)"],
+            assistant_reply="짧은뜨기는 코에 바늘을 넣고 실을 끌어온 뒤, 바늘의 두 고리를 한 번에 빼는 낮고 단단한 코예요.",
+            follow_up_question="사슬 바탕에 연습할까요, 원형의 다음 단에 연습할까요?",
+            reasoning_summary="동작 설명과 실제 연습 자료가 함께 필요한 기법 질문",
+        )
+        with patch("knitcoach.route_conversation_with_model", return_value=decision):
+            result = invoke_turn(create_knitcoach(), "낮고 단단한 코는 어떻게 떠?", "model-technique-support")
+
+        self.assertEqual(["짧은뜨기(single crochet)"], result["detected_techniques"])
+        self.assertIn("technique_library", result["support_modules"])
+        self.assertEqual("짧은뜨기(single crochet)", result["technique_resources"][0]["technique"])
+        self.assertIn("기법 카드", result["user_response"])
+        self.assertIn("사슬 바탕에 연습할까요", result["user_response"])
+        self.assertTrue(result["practice_plan"])
+        self.assertEqual("none", result["project_view"])
+
+    def test_model_can_answer_a_tool_question_with_the_exact_tool_library_item(self) -> None:
+        decision = make_decision(
+            action=ConversationAction.TOOL_QUESTION,
+            support_modules=[SupportModule.DIRECT_ANSWER, SupportModule.TOOL_LIBRARY],
+            tool_slugs=["stitch-markers"],
+            assistant_reply="표시링은 단의 시작이나 반복 위치를 잊지 않도록 걸어 두는 작은 표식이에요.",
+            reasoning_summary="표시링 정의와 생김새 자료가 필요한 도구 질문",
+        )
+        program = activate_learning_program(new_learning_program("crochet-round-coaster"))
+        with patch("knitcoach.route_conversation_with_model", return_value=decision):
+            result = invoke_turn(
+                create_knitcoach(),
+                "첫 코 자리를 자꾸 잊어버리는데 뭘 걸어두면 돼?",
+                "model-tool-support",
+                learning_program=program,
+            )
+
+        self.assertEqual(["stitch-markers"], result["selected_tool_slugs"])
+        self.assertIn("tool_library", result["support_modules"])
+        self.assertTrue(any("표시링" in item for item in result["required_tools"]))
+        self.assertEqual(program, result["learning_program"])
+        self.assertFalse(result["program_turn"])
+        self.assertEqual("none", result["project_view"])
+        self.assertIn("표시링은", result["user_response"])
+
+    def test_model_can_recommend_curated_projects_without_forcing_a_selection(self) -> None:
+        decision = make_decision(
+            action=ConversationAction.OTHER_KNITTING,
+            support_modules=[SupportModule.DIRECT_ANSWER, SupportModule.CURATED_PROJECT],
+            suggested_curriculum_ids=["crochet-round-coaster", "needle-garter-scarf"],
+            assistant_reply="처음이라면 빨리 완성되는 코바늘 티코스터나 같은 동작을 반복하는 대바늘 목도리가 좋아요. 아래 두 작품을 비교해 보세요.",
+            follow_up_question="단단한 작은 소품과 부드러운 목도리 중 어느 쪽이 더 끌리나요?",
+            reasoning_summary="입문자가 작품 비교를 원하지만 아직 하나를 선택하지 않음",
+        )
+        with patch("knitcoach.route_conversation_with_model", return_value=decision):
+            result = invoke_turn(create_knitcoach(), "완전 초보인데 첫 작품을 추천해줘", "model-project-recommendations")
+
+        self.assertEqual(
+            ["crochet-round-coaster", "needle-garter-scarf"],
+            result["project_suggestions"],
+        )
+        self.assertEqual({}, result["learning_program"])
+        self.assertFalse(result["program_turn"])
+        self.assertIn("아래 두 작품", result["user_response"])
+        self.assertIn("어느 쪽이 더 끌리나요", result["user_response"])
 
     def test_all_six_journeys_have_complete_ui_copy(self) -> None:
         self.assertEqual(set(JourneyType), set(JOURNEY_DEFINITIONS))

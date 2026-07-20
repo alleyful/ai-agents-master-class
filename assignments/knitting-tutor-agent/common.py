@@ -158,7 +158,6 @@ def attach_work_cards(result: dict, source_message_id: str) -> list[str]:
             source_message_id,
         ))
 
-    program_is_active = result.get("learning_program", {}).get("status") in {"active", "preview"}
     if (
         result.get("detected_techniques")
         and result.get("intent") == "learn_technique"
@@ -193,17 +192,17 @@ def attach_work_cards(result: dict, source_message_id: str) -> list[str]:
     if (
         result.get("intent") == "advise_tools"
         and result.get("required_tools")
-        and result.get("next_action")
-        and not program_is_active
+        and not result.get("program_turn")
     ):
         cards.append(_work_card(
             "tools",
-            "프로젝트 도구 선택",
+            "질문에 맞는 도구 안내",
             result["required_tools"][0],
             {
                 "tools": result.get("required_tools", []),
                 "materials": result.get("required_materials", []),
                 "accessories": result.get("accessories", []),
+                "tool_slugs": result.get("selected_tool_slugs", []),
             },
             source_message_id,
         ))
@@ -288,6 +287,9 @@ def debug_metadata(result: dict) -> dict:
         "project_suggestions": result.get("project_suggestions"),
         "learning_program": result.get("learning_program"),
         "conversation_action": result.get("conversation_action"),
+        "support_modules": result.get("support_modules", []),
+        "selected_tool_slugs": result.get("selected_tool_slugs", []),
+        "suggested_curriculum_ids": result.get("suggested_curriculum_ids", []),
         "model_routed": result.get("model_routed"),
         "project_view": result.get("project_view"),
     }

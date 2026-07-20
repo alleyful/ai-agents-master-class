@@ -18,7 +18,7 @@ from langgraph.types import Overwrite, Send
 from pydantic import BaseModel, ConfigDict, Field
 
 from content.techniques import TECHNIQUE_CATALOG, TECHNIQUES, resolve_techniques
-from content.tools import recommend_tools, resolve_tools
+from content.tools import get_tool, recommend_tools, resolve_tools
 from domain.curricula import (
     CURRICULA,
     activate_learning_program,
@@ -32,7 +32,7 @@ from domain.curricula import (
     restart_learning_program,
 )
 from content.purchases import build_purchase_plan
-from conversation_router import ConversationAction, route_conversation_with_model
+from conversation_router import ConversationAction, SupportModule, route_conversation_with_model
 from domain.journeys import infer_journey
 from domain.models import JourneyType
 from model_provider import (
@@ -152,7 +152,11 @@ class KnitCoachState(TypedDict):
     project_suggestions: list[str]
     purchase_plan: dict
     conversation_action: str
+    support_modules: list[str]
+    selected_tool_slugs: list[str]
+    suggested_curriculum_ids: list[str]
     model_reply: str
+    model_follow_up: str
     model_routed: bool
     project_view: Literal["none", "overview", "step"]
 
@@ -875,6 +879,10 @@ def classifier_agent(state: KnitCoachState) -> dict:
     existing_program = state.get("learning_program", {})
     model_decision = route_conversation_with_model(state)
     model_action = model_decision.action if model_decision else None
+    support_modules = [module.value for module in model_decision.support_modules] if model_decision else []
+    model_techniques = model_decision.technique_names if model_decision else []
+    selected_tool_slugs = model_decision.tool_slugs if model_decision else []
+    suggested_curriculum_ids = model_decision.suggested_curriculum_ids if model_decision else []
     rule_out_of_scope = not is_knitting_scope(
         text,
         existing_program=existing_program,
@@ -998,6 +1006,11 @@ def classifier_agent(state: KnitCoachState) -> dict:
         else detect_input_type(text)
     )
     tool_type = detect_tool_type(text)
+    for slug in selected_tool_slugs:
+        selected_tool = get_tool(slug)
+        if selected_tool and selected_tool.craft in {"crochet", "needle_knitting"}:
+            tool_type = selected_tool.craft
+            break
     if tool_type == "unknown" and previous_tool_type in {"crochet", "needle_knitting"}:
         tool_type = previous_tool_type
     current_skill = detect_current_skill(text, tool_type)
@@ -1037,6 +1050,7 @@ def classifier_agent(state: KnitCoachState) -> dict:
         journey = JourneyType.START_FROM_ZERO
     learner_profile = {"level": learner_level, "preferred_style": "hands_on" if "연습" in text else "unknown", "goal": detect_goal(text, tool_type)}
     techniques = detect_techniques(text, tool_type, current_skill)
+    techniques = merge_unique(model_techniques, techniques)
     if pattern_literacy:
         current_skill = "도안 읽기"
         techniques = []
@@ -1086,7 +1100,11 @@ def classifier_agent(state: KnitCoachState) -> dict:
         "learning_program": learning_program,
         "program_turn": program_turn,
         "conversation_action": model_action.value if model_action else "rules_fallback",
+        "support_modules": support_modules,
+        "selected_tool_slugs": selected_tool_slugs,
+        "suggested_curriculum_ids": suggested_curriculum_ids,
         "model_reply": model_decision.assistant_reply if model_decision else "",
+        "model_follow_up": model_decision.follow_up_question if model_decision else "",
         "model_routed": bool(model_decision),
         "project_view": project_view,
     }
@@ -1301,7 +1319,15 @@ def tool_advisor_agent(state: KnitCoachState) -> dict:
     if state["intent"] == "advise_tools":
         text = latest_user_text(state)
         level = state.get("learner_profile", {}).get("level", "beginner")
-        direct_advice = recommend_tools(text, state["tool_type"], level)
+        selected_tools = [get_tool(slug) for slug in state.get("selected_tool_slugs", [])]
+        selected_tools = [item for item in selected_tools if item]
+        if selected_tools:
+            direct_advice = [
+                f"{item.name}: {item.budget_choice if level in {'beginner', 'first_project', 'unknown'} else item.upgrade_choice}"
+                for item in selected_tools[:3]
+            ]
+        else:
+            direct_advice = recommend_tools(text, state["tool_type"], level)
         if resolve_tools(text):
             sizing_notes = [item for item in required_tools if "권장 mm" in item or "게이지" in item]
             required_tools = merge_unique(direct_advice, sizing_notes)
@@ -1437,6 +1463,25 @@ def _tool_definition_lesson(text: str) -> str | None:
     )
 
 
+def _selected_tool_lesson(slugs: list[str]) -> str | None:
+    """Explain model-selected tools strictly from the authored tool catalog."""
+    items = [get_tool(slug) for slug in slugs]
+    items = [item for item in items if item]
+    if not items:
+        return None
+    sections = []
+    for item in items[:3]:
+        uses = " · ".join(item.best_for[:3])
+        size_note = item.size_guide[0] if item.size_guide else "작품 도안과 실 라벨의 규격을 먼저 확인하세요."
+        sections.append(
+            f"### {item.name}\n\n{item.summary}\n\n"
+            f"**잘 맞는 작업** · {uses}\n\n"
+            f"**규격 확인** · {size_note}\n\n"
+            f"**첫 구매** · {item.budget_choice}"
+        )
+    return "\n\n".join(sections)
+
+
 def _pattern_literacy_lesson(text: str) -> str | None:
     """Return a beginner-first guide for the four authored notation entry points."""
     if not is_pattern_literacy_request(text):
@@ -1494,14 +1539,30 @@ def teacher_agent(state: KnitCoachState) -> dict:
     reasons = "; ".join(state["difficulty_reasons"]) if state["difficulty_reasons"] else "난이도 판단 근거가 아직 부족합니다."
     technique_name, technique = _primary_technique_content(state)
     learning_program = state.get("learning_program", {})
-    project_suggestions: list[str] = []
+    project_suggestions: list[str] = list(state.get("suggested_curriculum_ids", []))
     purchase_plan: dict = {}
-    direct_tool_lesson = _tool_definition_lesson(latest_user_text(state))
+    support_modules = set(state.get("support_modules", []))
+    direct_tool_lesson = _tool_definition_lesson(latest_user_text(state)) or _selected_tool_lesson(
+        state.get("selected_tool_slugs", [])
+    )
     pattern_literacy_lesson = _pattern_literacy_lesson(latest_user_text(state))
-    if state.get("model_reply"):
+    structured_technique = bool(
+        technique
+        and (
+            SupportModule.TECHNIQUE_LIBRARY.value in support_modules
+            or (not state.get("model_routed") and state["intent"] == "learn_technique")
+        )
+    )
+    if (
+        state.get("model_reply")
+        and not state.get("program_turn")
+        and not direct_tool_lesson
+        and not structured_technique
+        and not pattern_literacy_lesson
+    ):
         lesson = state["model_reply"]
     elif direct_tool_lesson:
-        lesson = direct_tool_lesson
+        lesson = state.get("model_reply") or direct_tool_lesson
     elif pattern_literacy_lesson:
         lesson = pattern_literacy_lesson
     elif state.get("program_turn") and learning_program and learning_program.get("status") == "shopping":
@@ -1646,18 +1707,24 @@ def teacher_agent(state: KnitCoachState) -> dict:
             f"**바늘 안내**\n{tools}\n\n**실 선택 메모**\n{materials}\n\n**함께 준비할 것**\n{accessories}"
         )
     elif state["intent"] == "learn_technique" and technique:
-        steps = "\n".join(f"{index}. {step}" for index, step in enumerate(technique["steps"], start=1))
-        corrections = "\n".join(
-            f"- {mistake} → {fix}"
-            for mistake, fix in zip(technique["common_mistakes"], technique["mistake_fixes"])
-        )
-        lesson = (
-            f"### {technique_name.split('(')[0]} · {technique['abbreviation']}\n\n"
-            f"{technique['description']}\n\n"
-            f"**이번 목표**\n{technique['learning_goal']}\n\n"
-            f"**뜨는 순서**\n{steps}\n\n"
-            f"**자주 하는 실수와 교정**\n{corrections}"
-        )
+        if state.get("model_reply") and structured_technique:
+            lesson = (
+                f"{state['model_reply']}\n\n"
+                f"아래 **{technique_name.split('(')[0]} 기법 카드**에서 실제 손동작, 핵심 장면과 연습 기준을 이어서 확인할 수 있어요."
+            )
+        else:
+            steps = "\n".join(f"{index}. {step}" for index, step in enumerate(technique["steps"], start=1))
+            corrections = "\n".join(
+                f"- {mistake} → {fix}"
+                for mistake, fix in zip(technique["common_mistakes"], technique["mistake_fixes"])
+            )
+            lesson = (
+                f"### {technique_name.split('(')[0]} · {technique['abbreviation']}\n\n"
+                f"{technique['description']}\n\n"
+                f"**이번 목표**\n{technique['learning_goal']}\n\n"
+                f"**뜨는 순서**\n{steps}\n\n"
+                f"**자주 하는 실수와 교정**\n{corrections}"
+            )
         term_notes = []
         if "foundation" in lesson:
             term_notes.append("foundation: 작품을 시작하는 첫 사슬이나 첫 단")
@@ -1721,7 +1788,8 @@ def practice_planner_agent(state: KnitCoachState) -> dict:
     learning_program = state.get("learning_program", {})
     step = current_curriculum_step(learning_program)
     direct_tool_question = is_tool_definition_question(latest_user_text(state))
-    if state.get("model_reply"):
+    technique_support = SupportModule.TECHNIQUE_LIBRARY.value in state.get("support_modules", [])
+    if state.get("model_reply") and not technique_support:
         practice_plan = ""
         next_action = ""
     elif direct_tool_question or is_pattern_literacy_request(latest_user_text(state)):
@@ -1756,7 +1824,7 @@ def practice_planner_agent(state: KnitCoachState) -> dict:
     elif state["intent"] == "advise_tools":
         practice_plan = ""
         next_action = "실 라벨의 굵기·권장 mm, 만들 작품의 크기, 예산 범위를 알려주면 규격을 더 정확히 좁힐 수 있어요."
-    elif state["intent"] == "learn_technique" and technique:
+    elif state["intent"] == "learn_technique" and technique and (technique_support or not state.get("model_routed")):
         practice_plan = technique["practice"]
         next_action = technique["success_check"]
     elif state["recommended_fixes"]:
@@ -1779,7 +1847,10 @@ def check_understanding_agent(state: KnitCoachState) -> dict:
     learning_program = state.get("learning_program", {})
     step = current_curriculum_step(learning_program)
     direct_tool_question = is_tool_definition_question(latest_user_text(state))
-    if state.get("model_reply"):
+    technique_support = SupportModule.TECHNIQUE_LIBRARY.value in state.get("support_modules", [])
+    if state.get("model_follow_up") and not state.get("program_turn"):
+        understanding_check = state["model_follow_up"]
+    elif state.get("model_reply") and not technique_support:
         understanding_check = ""
     elif direct_tool_question or is_pattern_literacy_request(latest_user_text(state)):
         understanding_check = ""
@@ -1938,7 +2009,11 @@ def reset_turn_state(state: KnitCoachState) -> dict:
         "purchase_plan": {},
         "program_turn": False,
         "conversation_action": "",
+        "support_modules": [],
+        "selected_tool_slugs": [],
+        "suggested_curriculum_ids": [],
         "model_reply": "",
+        "model_follow_up": "",
         "model_routed": False,
         "project_view": "none",
     }
@@ -2060,7 +2135,11 @@ def initial_state(user_text: str, image_path: str | None = None) -> KnitCoachSta
         "learning_program": {},
         "program_turn": False,
         "conversation_action": "",
+        "support_modules": [],
+        "selected_tool_slugs": [],
+        "suggested_curriculum_ids": [],
         "model_reply": "",
+        "model_follow_up": "",
         "model_routed": False,
         "project_view": "none",
         "project_suggestions": [],

@@ -21,6 +21,7 @@ from common import (
 )
 from content.presets import DEFAULT_PRESET, PRESET_NAMES, PROJECT_PRESETS
 from content.techniques import resolve_techniques
+from content.tools import TOOL_IMAGE_PATHS, get_tool
 from domain.curricula import CURATED_BEGINNER_PROJECT_IDS, CURRICULA, current_curriculum_step
 from domain.journeys import JOURNEY_DEFINITIONS
 from domain.models import JourneyType
@@ -102,6 +103,13 @@ def _open_technique_detail(name: str) -> None:
 def _open_tool_library() -> None:
     st.session_state.workspace_view = "tools"
     st.session_state.composer_mode = "chat"
+
+
+def _open_tool_detail(slug: str) -> None:
+    st.session_state.selected_tool = slug
+    st.session_state.workspace_view = "tools"
+    st.session_state.composer_mode = "chat"
+    st.session_state.selected_work_card_id = None
 
 
 def _ask_about_technique(name: str) -> None:
@@ -333,6 +341,41 @@ def _render_technique_strip(card: dict) -> None:
                     f"⌘ {label}",
                     key=f"technique_chip_{card['id']}_{label}",
                     on_click=lambda card_id=card["id"]: setattr(st.session_state, "selected_work_card_id", card_id),
+                )
+
+
+def _render_tool_strip(card: dict) -> None:
+    slugs = card["payload"].get("tool_slugs", [])
+    items = [get_tool(slug) for slug in slugs]
+    items = [item for item in items if item]
+    if not items:
+        with st.container(border=True, key=f"tool_strip_{card['id']}"):
+            st.caption("질문에 맞춘 도구 안내")
+            st.write(card["summary"])
+            st.button(
+                "도구 보관함에서 비교하기 →",
+                key=f"tool_library_{card['id']}",
+                on_click=_open_tool_library,
+                use_container_width=True,
+            )
+        return
+
+    with st.container(border=True, key=f"tool_strip_{card['id']}"):
+        st.caption("답변과 함께 보면 좋은 도구")
+        columns = st.columns(min(len(items), 3), gap="small")
+        for column, item in zip(columns, items[:3]):
+            with column:
+                image_path = _BASE_DIR / TOOL_IMAGE_PATHS.get(item.slug, "")
+                if image_path.is_file():
+                    st.image(str(image_path), width="stretch")
+                st.markdown(f"**{item.name}**")
+                st.caption(item.summary)
+                st.button(
+                    "자세히 보기 →",
+                    key=f"tool_detail_{card['id']}_{item.slug}",
+                    on_click=_open_tool_detail,
+                    args=(item.slug,),
+                    use_container_width=True,
                 )
 
 
@@ -713,6 +756,9 @@ def _render_work_card(card: dict) -> None:
         return
     if card["type"] == "purchase_kit":
         _render_purchase_kit(card)
+        return
+    if card["type"] == "tools":
+        _render_tool_strip(card)
         return
     with st.container(border=True):
         label = _CARD_LABELS.get(card["type"], "작업")
